@@ -2,6 +2,8 @@ My AES exercise, implemented in Python3.10. This is not inended to be used in re
 
 summer0.txt, summer.txt, buddha.txt are used for testing.
 
+This branch uses numpy.ubyte data type (or dtype='B')
+
 References:
 1. Block Cipher Mode of Operation: https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
 2. Rijndael MixColumn: https://en.wikipedia.org/wiki/Rijndael_MixColumns

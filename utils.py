@@ -184,36 +184,31 @@ def block_size_is_16(block):
     Bytes objects are immutable sequences of single bytes.
     bytearray objects are a mutable counterpart to bytes objects.
     """
-    assert isinstance(block, bytes)
-    return len(block) == BLOCKSIZE
+    assert isinstance(block, np.ndarray)
+    return block.size == BLOCKSIZE
 
 def block2state(block):
     """
     Block: A sequence of bits of a given fxed length. In this Standard, blocks consist of 128 bits, sometimes represented as arrays of bytes or words. 
     convert 16 bytes block into a 4 by 4 state
     """
-    assert len(block) == BLOCKSIZE
-    state = [[block[i * Nk + j] for i in range(Nk)] for j in range(Nb)]
-
-    return state
+    assert block.size == BLOCKSIZE
+    return block.reshape((4, 4)).T
 
 def state2block(state):
-    block = []
-    for i in range(Nb):
-        for j in range(Nk):
-            block.append(state[j][i].to_bytes(1, 'big'))
-    block = b''.join(block)
-    return block
+    assert state.shape == (4, 4)
+    return state.flatten(order='F')
 
 def addroundkey(state, key):
     """
     input state and key: a 4 by 4 2D python (non numpy) matrix
     output state: a 4 by 4 2D python (non numpy) matrix
     """
+    newstate = np.ndarray((4, 4), dtype='B')
     for i in range(Nk):
         for j in range(Nb):
-            state[i][j] = state[i][j] ^ key[i][j]
-    return state
+            newstate[i][j] = state[i][j] ^ key[i][j]
+    return newstate
 
 def subbytes(state):
     """
@@ -221,75 +216,81 @@ def subbytes(state):
     input state: a 4 by 4 2D python (non numpy) matrix
     output state: a 4 by 4 2D python (non numpy) matrix
     """
+    newstate = np.ndarray((4, 4), dtype='B')
     for i in range(Nk):
         for j in range(Nb):
-            state[i][j] = SBOX[state[i][j]]
-    return state
+            newstate[i][j] = SBOX[state[i][j]]
+    return newstate
 
 def invsubbytes(state):
     """
     Multiplicative inverse in GF(2^8)
     output state: a 4 by 4 2D python (non numpy) matrix
     """
+    newstate = np.ndarray((4, 4), dtype='B')
     for i in range(Nk):
         for j in range(Nb):
-            state[i][j] = ISBOX[state[i][j]]
-    return state
+            newstate[i][j] = ISBOX[state[i][j]]
+    return newstate
 
 def shiftrows(state):
-    state[1] = [state[1][1], state[1][2], state[1][3], state[1][0]]
-    state[2] = [state[2][2], state[2][3], state[2][0], state[2][1]]
-    state[3] = [state[3][3], state[3][0], state[3][1], state[3][2]]
-    return state
+    newstate = np.ndarray((4, 4), dtype='B')
+    newstate[0] = state[0]
+    newstate[1] = np.roll(state[1], -1)
+    newstate[2] = np.roll(state[2], -2)
+    newstate[3] = np.roll(state[3], -3)
+    return newstate
 
 def invshiftrows(state):
-    state[1] = [state[1][3], state[1][0], state[1][1], state[1][2]]
-    state[2] = [state[2][2], state[2][3], state[2][0], state[2][1]]
-    state[3] = [state[3][1], state[3][2], state[3][3], state[3][0]]
-    return state
+    newstate = np.ndarray((4, 4), dtype='B')
+    newstate[0] = state[0]
+    newstate[1] = [state[1][3], state[1][0], state[1][1], state[1][2]]
+    newstate[2] = [state[2][2], state[2][3], state[2][0], state[2][1]]
+    newstate[3] = [state[3][1], state[3][2], state[3][3], state[3][0]]
+    return newstate
 
 def mixcolumns(state):
     """
     See: https://en.wikipedia.org/wiki/Rijndael_MixColumns
     """
-    mixed = [[0, 0, 0, 0] for i in range(Nb)]
-
+    newmixed = np.zeros((4, 4), dtype='B')
     for i in range(Nb):
-        mixed[0][i] = GFP2[state[0][i]] ^ GFP3[state[1][i]] ^ state[2][i] ^ state[3][i]
-        mixed[1][i] = state[0][i] ^ GFP2[state[1][i]] ^ GFP3[state[2][i]] ^ state[3][i]
-        mixed[2][i] = state[0][i] ^ state[1][i] ^ GFP2[state[2][i]] ^ GFP3[state[3][i]]
-        mixed[3][i] = GFP3[state[0][i]] ^ state[1][i] ^ state[2][i] ^ GFP2[state[3][i]]
-
-    return mixed
+        newmixed[0][i] = GFP2[state[0][i]] ^ GFP3[state[1][i]] ^ state[2][i] ^ state[3][i]
+        newmixed[1][i] = state[0][i] ^ GFP2[state[1][i]] ^ GFP3[state[2][i]] ^ state[3][i]
+        newmixed[2][i] = state[0][i] ^ state[1][i] ^ GFP2[state[2][i]] ^ GFP3[state[3][i]]
+        newmixed[3][i] = GFP3[state[0][i]] ^ state[1][i] ^ state[2][i] ^ GFP2[state[3][i]]
+    return newmixed
 
 def invmixcolumns(state):
     """"
     See: https://en.wikipedia.org/wiki/Rijndael_MixColumns#InverseMixColumns
     """
-    mixed = [[0, 0, 0, 0] for i in range(Nb)]
-
+    newmixed = np.ndarray((4, 4), dtype='B')
     for i in range(Nb):
-        mixed[0][i] = GFP14[state[0][i]] ^ GFP11[state[1][i]] ^ GFP13[state[2][i]] ^ GFP9[state[3][i]]
-        mixed[1][i] = GFP9[state[0][i]] ^ GFP14[state[1][i]] ^ GFP11[state[2][i]] ^ GFP13[state[3][i]]
-        mixed[2][i] = GFP13[state[0][i]] ^ GFP9[state[1][i]] ^ GFP14[state[2][i]] ^ GFP11[state[3][i]]
-        mixed[3][i] = GFP11[state[0][i]] ^ GFP13[state[1][i]] ^ GFP9[state[2][i]] ^ GFP14[state[3][i]]
+        newmixed[0][i] = GFP14[state[0][i]] ^ GFP11[state[1][i]] ^ GFP13[state[2][i]] ^ GFP9[state[3][i]]
+        newmixed[1][i] = GFP9[state[0][i]] ^ GFP14[state[1][i]] ^ GFP11[state[2][i]] ^ GFP13[state[3][i]]
+        newmixed[2][i] = GFP13[state[0][i]] ^ GFP9[state[1][i]] ^ GFP14[state[2][i]] ^ GFP11[state[3][i]]
+        newmixed[3][i] = GFP11[state[0][i]] ^ GFP13[state[1][i]] ^ GFP9[state[2][i]] ^ GFP14[state[3][i]]
 
-    return mixed
+    return newmixed
 
 def subword(w):
-    f = lambda x: int(x.hex()[0], 16) * 16 + int(x.hex()[1], 16)
+#   f = lambda x: int(x.hex()[0], 16) * 16 + int(x.hex()[1], 16)
     assert len(w) == 4
-    return [SBOX[f(w[0])], SBOX[f(w[1])], SBOX[f(w[2])], SBOX[f(w[3])]]
+#   return [SBOX[f(w[0])], SBOX[f(w[1])], SBOX[f(w[2])], SBOX[f(w[3])]]
+    return [SBOX[w[0]], SBOX[w[1]], SBOX[w[2]], SBOX[w[3]]]
 
 def rotword(w):
     assert len(w) == 4
-    return [w[1].to_bytes(1, 'big'), w[2].to_bytes(1, 'big'), w[3].to_bytes(1, 'big'), w[0].to_bytes(1, 'big')]
+    return np.roll(w, -1)
 
 def keyexpansion(key):
     """
     key: a list of 4 * Nk bytes
-    return: a list of 4 * (Nr + 1) bytes
+    w: a 4-byte word
+    return: a list of 4 * (Nr + 1) 4-byte words
     """
+    assert key.shape == (BLOCKSIZE,)
     i = 0
     w = []
     while i < Nk:
@@ -303,8 +304,7 @@ def keyexpansion(key):
             temp[0] = temp[0] ^ Rcon[i // Nk]
         elif Nk > 6 and i % Nk == 4:
             temp = subword(temp)
-        temp = [ord(t) if isinstance(t, bytes) else t for t in temp]
-        w.append(b''.join([(w[i - Nk][j] ^ temp[j]).to_bytes(1, 'big') for j in range(Nk)]))
+        w.append(np.array([(w[i - Nk][j] ^ temp[j]) for j in range(Nk)], dtype='B'))
         i += 1
 
     assert len(w) == (4 * Nr + 4)
