@@ -201,20 +201,16 @@ def state2block(state):
 
 def addroundkey(state, key):
     """
-    input state and key: a 4 by 4 2D python (non numpy) matrix
-    output state: a 4 by 4 2D python (non numpy) matrix
+    input state and key: a 4 by 4 2D python matrix
+    output state: a 4 by 4 2D python matrix
     """
-    newstate = np.ndarray((4, 4), dtype='B')
-    for i in range(Nk):
-        for j in range(Nb):
-            newstate[i][j] = state[i][j] ^ key[i][j]
-    return newstate
+    return np.bitwise_xor(state, key)
 
 def subbytes(state):
     """
     Multiplicative inverse in GF(2^8)
-    input state: a 4 by 4 2D python (non numpy) matrix
-    output state: a 4 by 4 2D python (non numpy) matrix
+    input state: a 4 by 4 2D python matrix
+    output state: a 4 by 4 2D python matrix
     """
     newstate = np.ndarray((4, 4), dtype='B')
     for i in range(Nk):
@@ -225,7 +221,7 @@ def subbytes(state):
 def invsubbytes(state):
     """
     Multiplicative inverse in GF(2^8)
-    output state: a 4 by 4 2D python (non numpy) matrix
+    output state: a 4 by 4 2D python matrix
     """
     newstate = np.ndarray((4, 4), dtype='B')
     for i in range(Nk):
@@ -244,9 +240,9 @@ def shiftrows(state):
 def invshiftrows(state):
     newstate = np.ndarray((4, 4), dtype='B')
     newstate[0] = state[0]
-    newstate[1] = [state[1][3], state[1][0], state[1][1], state[1][2]]
-    newstate[2] = [state[2][2], state[2][3], state[2][0], state[2][1]]
-    newstate[3] = [state[3][1], state[3][2], state[3][3], state[3][0]]
+    newstate[1] = np.roll(state[1], -3)
+    newstate[2] = np.roll(state[2], -2)
+    newstate[3] = np.roll(state[3], -1)
     return newstate
 
 def mixcolumns(state):
@@ -275,9 +271,7 @@ def invmixcolumns(state):
     return newmixed
 
 def subword(w):
-#   f = lambda x: int(x.hex()[0], 16) * 16 + int(x.hex()[1], 16)
     assert len(w) == 4
-#   return [SBOX[f(w[0])], SBOX[f(w[1])], SBOX[f(w[2])], SBOX[f(w[3])]]
     return [SBOX[w[0]], SBOX[w[1]], SBOX[w[2]], SBOX[w[3]]]
 
 def rotword(w):
